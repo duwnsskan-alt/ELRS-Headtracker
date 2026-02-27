@@ -4,10 +4,13 @@
 // ═══════════════════════════════════════════════════════════════
 //  Config.h  —  XIAO ESP32-C6 + BNO085 Head Tracker
 //  하드웨어 핀 / 상수 / 튜닝 파라미터 전부 여기서 관리
+//
+//  ★ 미결 사항 (HW 도착 후 확정):
+//    - PIN_BTN_MODE : MODE 버튼 핀 번호
 // ═══════════════════════════════════════════════════════════════
 
 // ── 버전 ────────────────────────────────────────────────────────
-#define FW_VERSION  "0.1.0-alpha"
+#define FW_VERSION  "0.2.0-alpha"
 #define HW_VERSION  "ESP32C6+BNO085"
 
 // ── 핀 매핑 (XIAO ESP32-C6) ─────────────────────────────────────
@@ -18,16 +21,17 @@
 #define PIN_BNO_RST -1   // BNO085 리셋 (미연결 → -1)
 
 // SBUS 출력 (UART1 TX)
-// XIAO C6: D6 = GPIO17 → SBUS TX
-#define PIN_SBUS_TX 17
+#define PIN_SBUS_TX 17   // D6 = GPIO17
 
 // 버튼 (풀업 내장, 눌리면 LOW)
-#define PIN_BTN_CENTER  0    // BOOT 버튼 (내장)
-#define PIN_BTN_MODE    1    // D1 (추가 버튼)
+#define PIN_BTN_CENTER  0    // BOOT 버튼 (내장, 확정)
+// ⚠️ TODO: HW 도착 후 실제 핀 번호로 변경
+#define PIN_BTN_MODE    1    // ← 미결: HW 확인 필요
 
-// RGB LED (WS2812 내장 or 외부)
-#define PIN_LED         21   // XIAO C6 내장 RGB LED
-// 내장 LED 없으면 외부 WS2812 연결 핀으로 변경
+// RGB LED — XIAO ESP32-C6 내장 WS2812 사용 (확정)
+// Seeed XIAO C6 내장 RGB: GPIO21 (활성화: HIGH)
+#define PIN_LED         21
+#define LED_BUILTIN_RGB         // 내장 LED 사용 중임을 명시
 
 // ── BNO085 설정 ─────────────────────────────────────────────────
 #define BNO085_I2C_ADDR     0x4A   // SA0=GND → 0x4A, SA0=VCC → 0x4B
@@ -51,12 +55,34 @@
 #define DEFAULT_MAX_ANGLE_ROLL   45.0f
 
 // ── ESP-NOW ──────────────────────────────────────────────────────
-#define ESPNOW_CHANNEL      0    // WiFi 채널 (0 = 현재 채널 자동)
+#define ESPNOW_CHANNEL      6    // ELRS Backpack 기본 채널 (6 고정)
 #define ESPNOW_SEND_RATE_HZ 50   // 전송 주기
 #define ESPNOW_SEND_MS      (1000 / ESPNOW_SEND_RATE_HZ)
+// 바인드 방식: WebUI에서 주변 Backpack MAC 스캔 후 선택 (버튼 없음)
+// 바인드 전: 브로드캐스트 (FF:FF:FF:FF:FF:FF)
+// 바인드 후: NVS에 저장된 MAC으로 유니캐스트
 
 // ELRS Backpack 헤드트래킹 패킷 타입
 #define ELRS_PKT_TYPE_HT    0x0B
+
+// ── BLE 트레이너 (FrSky PARA) ────────────────────────────────────
+// ⏳ 추후 구현 예정 (Phase 5)
+// ESP32-C6 BLE 5.3으로 PARA 프로토콜 구현 가능
+// nRF52840 기반 오픈소스(ysoldak/HeadTracker) 포팅 필요
+// #define ENABLE_BLE_PARA   // 활성화 시 추가 개발 필요
+
+// ── WebUI ────────────────────────────────────────────────────────
+#define WIFI_AP_SSID        "HeadTracker"   // AP 이름
+#define WIFI_AP_PASSWORD    ""              // 비번 없음 (편의성)
+#define WIFI_AP_CHANNEL     1
+#define WEBUI_PORT          80
+#define WEBUI_HOSTNAME      "headtracker"   // headtracker.local
+// WebUI 기능:
+//   - 채널 매핑 / 각도 범위 / 반전 설정 (ELRS Configurator 스타일)
+//   - 실시간 3D 헤드 시각화 (디버그 탭)
+//   - Backpack 스캔 & 바인드 (ESP-NOW MAC 선택)
+//   - 프로파일 3개 전환
+//   - OTA 펌웨어 업데이트
 
 // ── SBUS ────────────────────────────────────────────────────────
 #define SBUS_BAUD       100000    // 100kbps 반전 UART

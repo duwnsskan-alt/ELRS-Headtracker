@@ -1,109 +1,164 @@
 #include <Arduino.h>
 #include "SharedState.h"
+#include "config/Settings.h"
 #include "sensor/SensorTask.h"
-#include "comms/CommsTask.h"
-#include "button/ButtonTask.h"
 #include "sensor/Orientation.h"
+#include "comms/CommsTask.h"
+#include "ui/LEDController.h"
+#include "ui/ButtonTask.h"
+#include "ui/WebUI.h"
 #include "config/Config.h"
 
 // ═══════════════════════════════════════════════════════════════
-//  main.cpp  —  진입점
-//
-//  Phase 1 (현재): Sensor + ESP-NOW 핵심 동작 검증
-//  Phase 2 (추후): 버튼, LED, WebUI, SBUS, NVS 설정 추가
+//  main.cpp  —  Phase 2
+//  Settings(NVS) + LED + Button 통합
+//  Phase 3: WebUI (WiFi AP + 바인드 UI + 3D 시각화)
 // ═══════════════════════════════════════════════════════════════
 
-// ── 전역 SharedState 정의 (extern은 SharedState.h에서 선언) ──
 SharedState gState;
 
-// ══════════════════════════════════════════════════════════════
-//  setup()
-// ══════════════════════════════════════════════════════════════
-void setup() {
-    // ── 시리얼 ────────────────────────────────────────────────
-    Serial.begin(115200);
-    delay(500);   // USB CDC 안정화 대기
+// LED 업데이트 태스크 (20ms 주기)
+static void ledTaskFn(void*) {
+    while (true) {
+        LEDController::update();
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
 
-    Serial.println("\n\n");
-    Serial.println("╔═══════════════════════════════╗");
-    Serial.printf ("║  HeadTracker  FW %s  ║\n", FW_VERSION);
-    Serial.printf ("║  HW: %-25s║\n", HW_VERSION);
-    Serial.println("╚═══════════════════════════════╝");
+// LED 상태를 SharedState에 맞게 동기화
+void syncLEDState() {
+    static bool prevSensorOk  = false;
+    static bool prevTracking  = true;
+    static bool prevConnected = false;
+    static bool prevWifiAp    = false;
 
-    // ── SharedState 초기화 ────────────────────────────────────
-    gState.init();
+    bool sensorOk, tracking, connected, wifiAp;
+    CommsMode mode;
 
-    // 기본 설정 적용 (Phase 2에서 NVS 로드로 교체)
-    gState.config.maxPan    = DEFAULT_MAX_ANGLE_PAN;
-    gState.config.maxTilt   = DEFAULT_MAX_ANGLE_TILT;
-    gState.config.maxRoll   = DEFAULT_MAX_ANGLE_ROLL;
-    gState.config.commsMode = COMMS_ESPNOW;
-    // 브로드캐스트 MAC (기본값, 바인드 전)
-    memset(gState.config.espnowMac, 0xFF, 6);
+    if (!gState.lock()) return;
+    sensorOk  = gState.sensorOk;
+    tracking  = gState.tracking;
+    connected = gState.espnowConnected;
+    wifiAp    = gState.wifiApActive;
+    mode      = gState.config.commsMode;
+    gState.unlock();
 
-    Serial.println("[MAIN] SharedState OK");
+    if (sensorOk == prevSensorOk && tracking == prevTracking &&
+        connected == prevConnected && wifiAp == prevWifiAp) return;
 
-    // ── FreeRTOS 태스크 생성 ─────────────────────────────────
-    SensorTask::start();
-    CommsTask::start();
-    ButtonTask::start();
+    prevSensorOk  = sensorOk;
+    prevTracking  = tracking;
+    prevConnected = connected;
+    prevWifiAp    = wifiAp;
 
-    Serial.println("[MAIN] Tasks started");
-    Serial.println("[MAIN] Boot complete — monitoring...\n");
+    if      (wifiAp)            LEDController::setState(LEDState::WIFI_AP);
+    else if (!sensorOk)         LEDController::setState(LEDState::SENSOR_ERROR);
+    else if (!tracking)         LEDController::setState(LEDState::OFF);
+    else if (mode == COMMS_SBUS)LEDController::setState(LEDState::SBUS_ACTIVE);
+    else if (connected)         LEDController::setState(LEDState::ESPNOW_CONNECTED);
+    else                        LEDController::setState(LEDState::ESPNOW_SEARCHING);
 }
 
 // ══════════════════════════════════════════════════════════════
-//  loop()  —  메인 루프는 최소화 (태스크에 위임)
+void setup() {
+    Serial.begin(115200);
+    delay(500);
+
+    Serial.println("\n");
+    Serial.println("╔══════════════════════════════════╗");
+    Serial.printf ("║  HeadTracker  FW %-15s║\n", FW_VERSION);
+    Serial.printf ("║  HW: %-27s║\n", HW_VERSION);
+    Serial.println("╚══════════════════════════════════╝");
+
+    gState.init();
+
+    LEDController::init();
+    LEDController::setState(LEDState::BOOTING);
+
+    Settings::init(gState);
+    Serial.printf("[MAIN] Profile %d loaded\n", Settings::currentProfile() + 1);
+
+    SensorTask::start();
+    CommsTask::start();
+    ButtonTask::start();
+    xTaskCreate(ledTaskFn, "LEDTask", TASK_LED_STACK, nullptr, TASK_LED_PRIO, nullptr);
+
+    Serial.println("[MAIN] All tasks started");
+    Serial.println("[MAIN] Cmds: c=center  t=tracking  s=status  r=reset  h=help\n");
+}
+
 // ══════════════════════════════════════════════════════════════
 void loop() {
-    // Phase 1: 시리얼 명령어 (디버깅 편의용)
-    // 'c' → 센터 리셋
-    // 't' → 트래킹 토글
-    // 's' → 상태 덤프
+    syncLEDState();
+
     if (Serial.available()) {
         char cmd = Serial.read();
         switch (cmd) {
+
         case 'c':
             Orientation::resetCenter(gState);
+            LEDController::flashWhite();
             Serial.println("[CMD] Center reset");
             break;
 
         case 't':
             if (gState.lock()) {
                 gState.tracking = !gState.tracking;
-                bool t = gState.tracking;
+                bool on = gState.tracking;
                 gState.unlock();
-                Serial.printf("[CMD] Tracking: %s\n", t ? "ON" : "OFF");
+                Serial.printf("[CMD] Tracking: %s\n", on ? "ON" : "OFF");
             }
             break;
 
         case 's': {
             if (!gState.lock()) break;
-            Serial.println("\n── State Dump ──────────────────");
-            Serial.printf("  SensorOK   : %s\n", gState.sensorOk ? "YES" : "NO");
-            Serial.printf("  Tracking   : %s\n", gState.tracking  ? "ON"  : "OFF");
-            Serial.printf("  ESP-NOW    : %s\n", gState.espnowConnected ? "CONN" : "DISC");
-            Serial.printf("  Pan/Tilt/Roll: %.1f° / %.1f° / %.1f°\n",
-                          gState.orientation.pan,
-                          gState.orientation.tilt,
-                          gState.orientation.roll);
-            Serial.printf("  CH14/15/16 : %d / %d / %d\n",
-                          gState.channels.pan(),
-                          gState.channels.tilt(),
-                          gState.channels.roll());
-            Serial.println("────────────────────────────────\n");
+            float    pan    = gState.orientation.pan;
+            float    tilt   = gState.orientation.tilt;
+            float    roll   = gState.orientation.roll;
+            uint16_t chPan  = gState.channels.pan();
+            uint16_t chTilt = gState.channels.tilt();
+            uint16_t chRoll = gState.channels.roll();
+            bool     ok     = gState.sensorOk;
+            bool     tr     = gState.tracking;
+            bool     conn   = gState.espnowConnected;
+            uint8_t  mac[6]; memcpy(mac, gState.config.espnowMac, 6);
             gState.unlock();
+
+            Serial.println("\n── Status ──────────────────────────");
+            Serial.printf("  Profile    : %d\n",   Settings::currentProfile() + 1);
+            Serial.printf("  SensorOK   : %s\n",   ok   ? "YES"  : "NO");
+            Serial.printf("  Tracking   : %s\n",   tr   ? "ON"   : "OFF");
+            Serial.printf("  ESP-NOW    : %s\n",   conn ? "CONN" : "DISC");
+            Serial.printf("  Backpack   : %02X:%02X:%02X:%02X:%02X:%02X\n",
+                          mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+            Serial.printf("  Pan/Tilt/Roll : %.1f / %.1f / %.1f deg\n", pan, tilt, roll);
+            Serial.printf("  CH14/15/16    : %d / %d / %d\n", chPan, chTilt, chRoll);
+            Serial.println("────────────────────────────────────\n");
             break;
         }
 
-        case 'h':
-            Serial.println("[CMD] Commands: c=center  t=toggle  s=status  h=help");
+        case 'r':
+            Settings::factoryReset(gState);
+            Serial.println("[CMD] Factory reset done");
             break;
 
-        default:
+        case 'w':
+            if (WebUI::isRunning()) {
+                WebUI::stop();
+                Serial.println("[CMD] WebUI stopped");
+            } else {
+                WebUI::start();
+                Serial.println("[CMD] WebUI started → connect WiFi 'HeadTracker' → 192.168.4.1");
+            }
             break;
+
+        case 'h':
+            Serial.println("[CMD] c=center  t=tracking  s=status  w=webui  r=factory_reset  h=help");
+            break;
+
+        default: break;
         }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(50));   // loop()는 50ms 간격으로 실행
+    vTaskDelay(pdMS_TO_TICKS(50));
 }
