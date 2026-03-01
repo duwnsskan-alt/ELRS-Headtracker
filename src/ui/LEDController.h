@@ -27,7 +27,7 @@ enum class LEDState : uint8_t {
     ESPNOW_SEARCHING, // 초록 빠른 깜빡임
     ESPNOW_CONNECTED, // 초록 solid
     SBUS_ACTIVE,      // 파랑 solid
-    WIFI_AP,          // 보라 solid
+    WIFI_AP_ON,       // 보라 solid
     BINDING,          // 하늘 펄스
     FLASH_WHITE,      // 흰색 1회 플래시 (센터 리셋 피드백)
 };

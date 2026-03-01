@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <ArduinoJson.h>
 
 // ── 정적 멤버 초기화 ──────────────────────────────────────────
 uint8_t  ESPNowComms::_peerMac[6]  = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
@@ -107,7 +108,7 @@ void ESPNowComms::setPeerMac(const uint8_t mac[6]) {
 // ══════════════════════════════════════════════════════════════
 //  전송 완료 콜백
 // ══════════════════════════════════════════════════════════════
-void ESPNowComms::onSendCallback(const uint8_t* /*mac*/,
+void ESPNowComms::onSendCallback(const esp_now_send_info_t* /*info*/,
                                   esp_now_send_status_t status) {
     if (status == ESP_NOW_SEND_SUCCESS) {
         _sentCount++;

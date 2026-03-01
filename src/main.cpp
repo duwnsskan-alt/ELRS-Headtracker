@@ -4,6 +4,7 @@
 #include "sensor/SensorTask.h"
 #include "sensor/Orientation.h"
 #include "comms/CommsTask.h"
+#include "comms/SBUSOutput.h"
 #include "ui/LEDController.h"
 #include "ui/ButtonTask.h"
 #include "ui/WebUI.h"
@@ -51,7 +52,7 @@ void syncLEDState() {
     prevConnected = connected;
     prevWifiAp    = wifiAp;
 
-    if      (wifiAp)            LEDController::setState(LEDState::WIFI_AP);
+    if      (wifiAp)            LEDController::setState(LEDState::WIFI_AP_ON);
     else if (!sensorOk)         LEDController::setState(LEDState::SENSOR_ERROR);
     else if (!tracking)         LEDController::setState(LEDState::OFF);
     else if (mode == COMMS_SBUS)LEDController::setState(LEDState::SBUS_ACTIVE);
@@ -84,7 +85,7 @@ void setup() {
     xTaskCreate(ledTaskFn, "LEDTask", TASK_LED_STACK, nullptr, TASK_LED_PRIO, nullptr);
 
     Serial.println("[MAIN] All tasks started");
-    Serial.println("[MAIN] Cmds: c=center  t=tracking  s=status  r=reset  h=help\n");
+    Serial.println("[MAIN] Cmds: c=center  t=tracking  s=status  w=webui  m=mode  r=reset  h=help\n");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -124,13 +125,23 @@ void loop() {
             uint8_t  mac[6]; memcpy(mac, gState.config.espnowMac, 6);
             gState.unlock();
 
+            CommsMode cm;
+            if (gState.lock()) { cm = gState.config.commsMode; gState.unlock(); }
+
             Serial.println("\n── Status ──────────────────────────");
             Serial.printf("  Profile    : %d\n",   Settings::currentProfile() + 1);
             Serial.printf("  SensorOK   : %s\n",   ok   ? "YES"  : "NO");
             Serial.printf("  Tracking   : %s\n",   tr   ? "ON"   : "OFF");
-            Serial.printf("  ESP-NOW    : %s\n",   conn ? "CONN" : "DISC");
-            Serial.printf("  Backpack   : %02X:%02X:%02X:%02X:%02X:%02X\n",
-                          mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+            Serial.printf("  CommsMode  : %s\n",   cm == COMMS_SBUS ? "SBUS" : "ESP-NOW");
+            if (cm == COMMS_ESPNOW) {
+                Serial.printf("  ESP-NOW    : %s\n",   conn ? "CONN" : "DISC");
+                Serial.printf("  Backpack   : %02X:%02X:%02X:%02X:%02X:%02X\n",
+                              mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+            } else {
+                Serial.printf("  SBUS TX    : GPIO%d (UART%d)\n", PIN_SBUS_TX, 1);
+                Serial.printf("  SBUS TX/Fail: %lu / %lu\n",
+                              SBUSOutput::getSentCount(), SBUSOutput::getFailedCount());
+            }
             Serial.printf("  Pan/Tilt/Roll : %.1f / %.1f / %.1f deg\n", pan, tilt, roll);
             Serial.printf("  CH14/15/16    : %d / %d / %d\n", chPan, chTilt, chRoll);
             Serial.println("────────────────────────────────────\n");
@@ -152,8 +163,21 @@ void loop() {
             }
             break;
 
+        case 'm':
+            if (gState.lock()) {
+                CommsMode prev = gState.config.commsMode;
+                gState.config.commsMode = (prev == COMMS_ESPNOW) ? COMMS_SBUS : COMMS_ESPNOW;
+                CommsMode next = gState.config.commsMode;
+                gState.unlock();
+                Serial.printf("[CMD] CommsMode: %s → %s (restart to apply)\n",
+                              prev == COMMS_SBUS ? "SBUS" : "ESP-NOW",
+                              next == COMMS_SBUS ? "SBUS" : "ESP-NOW");
+                Settings::save(gState);
+            }
+            break;
+
         case 'h':
-            Serial.println("[CMD] c=center  t=tracking  s=status  w=webui  r=factory_reset  h=help");
+            Serial.println("[CMD] c=center  t=tracking  s=status  w=webui  m=mode  r=factory_reset  h=help");
             break;
 
         default: break;

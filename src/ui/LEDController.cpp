@@ -99,7 +99,7 @@ void LEDController::update() {
         break;
 
     // ── WiFi AP: 보라 solid ─────────────────────────────────
-    case LEDState::WIFI_AP:
+    case LEDState::WIFI_AP_ON:
         setColor(120, 0, 180);
         break;
 

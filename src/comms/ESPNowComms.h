@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <esp_now.h>
 #include "SharedState.h"
 
 // ═══════════════════════════════════════════════════════════════
@@ -31,7 +32,7 @@ public:
     static uint32_t getFailedCount() { return _failedCount; }
 
 private:
-    static void onSendCallback(const uint8_t* mac, esp_now_send_status_t status);
+    static void onSendCallback(const esp_now_send_info_t* info, esp_now_send_status_t status);
 
     static uint8_t  _peerMac[6];
     static uint32_t _sentCount;

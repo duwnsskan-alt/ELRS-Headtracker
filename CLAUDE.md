@@ -147,7 +147,7 @@ REST API: `GET /api/status` `GET/POST /api/config` `GET /api/scan` `GET /api/sca
 - SBUS 출력 미구현 — `src/comms/SBUSOutput.cpp/h` 신규 작성 필요
 - ESP-NOW WiFi 채널 자동 맞춤 — 현재 채널 6 하드코딩, ELRS bind_phrase 연동 미구현
 
----
+---`
 
 ## 빌드 환경
 

@@ -1,5 +1,6 @@
 #include "CommsTask.h"
 #include "ESPNowComms.h"
+#include "SBUSOutput.h"
 #include "config/Config.h"
 
 // ══════════════════════════════════════════════════════════════
@@ -34,12 +35,21 @@ void CommsTask::taskFn(void* /*arg*/) {
     if (mode == COMMS_ESPNOW) {
         if (!ESPNowComms::init()) {
             Serial.println("[COMMS] ESP-NOW init failed, falling back to SBUS");
+            mode = COMMS_SBUS;
             if (gState.lock()) {
                 gState.config.commsMode = COMMS_SBUS;
                 gState.unlock();
             }
         } else {
             Serial.println("[COMMS] ESP-NOW ready");
+        }
+    }
+
+    if (mode == COMMS_SBUS) {
+        if (!SBUSOutput::init()) {
+            Serial.println("[COMMS] SBUS init failed!");
+        } else {
+            Serial.println("[COMMS] SBUS ready");
         }
     }
 
@@ -77,8 +87,9 @@ void CommsTask::taskFn(void* /*arg*/) {
         // ── 전송 ────────────────────────────────────────────
         if (currentMode == COMMS_ESPNOW) {
             ESPNowComms::send(chPan, chTilt, chRoll);
+        } else if (currentMode == COMMS_SBUS) {
+            SBUSOutput::sendHT(chPan, chTilt, chRoll);
         }
-        // SBUS는 SBUSOutput 태스크에서 별도 처리 (추후 추가)
 
         // ── 1초마다 진단 출력 ────────────────────────────────
         loopCount++;
@@ -90,12 +101,22 @@ void CommsTask::taskFn(void* /*arg*/) {
                 roll = gState.orientation.roll;
                 gState.unlock();
             }
-            Serial.printf("[COMMS] Pan:%.1f° Tilt:%.1f° Roll:%.1f° "
-                          "| CH: %d/%d/%d | TX:%lu Fail:%lu\n",
-                          pan, tilt, roll,
-                          chPan, chTilt, chRoll,
-                          ESPNowComms::getSentCount(),
-                          ESPNowComms::getFailedCount());
+
+            if (currentMode == COMMS_ESPNOW) {
+                Serial.printf("[COMMS] Pan:%.1f° Tilt:%.1f° Roll:%.1f° "
+                              "| CH: %d/%d/%d | TX:%lu Fail:%lu\n",
+                              pan, tilt, roll,
+                              chPan, chTilt, chRoll,
+                              ESPNowComms::getSentCount(),
+                              ESPNowComms::getFailedCount());
+            } else {
+                Serial.printf("[SBUS] Pan:%.1f° Tilt:%.1f° Roll:%.1f° "
+                              "| CH: %d/%d/%d | TX:%lu Fail:%lu\n",
+                              pan, tilt, roll,
+                              chPan, chTilt, chRoll,
+                              SBUSOutput::getSentCount(),
+                              SBUSOutput::getFailedCount());
+            }
         }
 
         vTaskDelayUntil(&lastWake, period);

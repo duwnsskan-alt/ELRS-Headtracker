@@ -7,7 +7,7 @@
 
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-#include <AsyncCallbackJsonWebHandler.h>
+#include <AsyncJson.h>
 #include <ArduinoJson.h>
 #include <Update.h>
 
@@ -586,7 +586,7 @@ void WebUI::start() {
         gState.wifiApActive = true;
         gState.unlock();
     }
-    LEDController::setState(LEDState::WIFI_AP);
+    LEDController::setState(LEDState::WIFI_AP_ON);
     Serial.println("[WebUI] Server started on http://192.168.4.1");
 }
 
