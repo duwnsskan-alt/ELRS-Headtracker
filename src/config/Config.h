@@ -13,25 +13,49 @@
 #define FW_VERSION  "0.2.0-alpha"
 #define HW_VERSION  "ESP32C6+BNO085"
 
-// ── 핀 매핑 (XIAO ESP32-C6) ─────────────────────────────────────
-// I2C (STEMMA QT / BNO085)
+// ── 핀 매핑 ──────────────────────────────────────────────────────
+// 보드 선택: platformio.ini build_flags -DBOARD_ESP32C3_SUPERMINI
+
+#if defined(BOARD_ESP32C3_SUPERMINI)
+// ┌─────────────────────────────────────────────────────────────┐
+// │  ESP32-C3 SuperMini  (테스트 보드)                           │
+// │  BOOT 버튼: GPIO9  /  MODE 버튼: GPIO10                     │
+// │  내장 WS2812 없음 → GPIO3에 외부 NeoPixel 연결              │
+// └─────────────────────────────────────────────────────────────┘
+#define PIN_SDA         6    // I2C SDA (BNO085)
+#define PIN_SCL         7    // I2C SCL (BNO085)
+#define PIN_BNO_INT    -1    // 미연결 → polling 모드
+#define PIN_BNO_RST    -1    // 미연결
+
+#define PIN_SBUS_TX     4    // UART1 TX
+
+#define PIN_BTN_CENTER  9    // BOOT 버튼 (내장, 풀업, LOW=눌림)
+#define PIN_BTN_MODE   10    // MODE 버튼 (GPIO10, 확정)
+
+// 외부 WS2812 NeoPixel (GPIO3 권장 — 스트래핑 핀 아님)
+#define PIN_LED         3
+#define PIN_LED_BUILTIN 8    // 내장 파란 LED (active LOW, 상태 확인용)
+
+#else
+// ┌─────────────────────────────────────────────────────────────┐
+// │  Seeed XIAO ESP32-C6  (양산 보드)                           │
+// └─────────────────────────────────────────────────────────────┘
 #define PIN_SDA     6    // D4 on XIAO silkscreen
 #define PIN_SCL     7    // D5 on XIAO silkscreen
 #define PIN_BNO_INT 2    // BNO085 인터럽트 (선택, 미연결 시 polling)
 #define PIN_BNO_RST -1   // BNO085 리셋 (미연결 → -1)
 
-// SBUS 출력 (UART1 TX)
 #define PIN_SBUS_TX 17   // D6 = GPIO17
 
-// 버튼 (풀업 내장, 눌리면 LOW)
 #define PIN_BTN_CENTER  0    // BOOT 버튼 (내장, 확정)
 // ⚠️ TODO: HW 도착 후 실제 핀 번호로 변경
 #define PIN_BTN_MODE    1    // ← 미결: HW 확인 필요
 
-// RGB LED — XIAO ESP32-C6 내장 WS2812 사용 (확정)
-// Seeed XIAO C6 내장 RGB: GPIO21 (활성화: HIGH)
+// RGB LED — XIAO ESP32-C6 내장 WS2812 (GPIO21)
 #define PIN_LED         21
 #define LED_BUILTIN_RGB         // 내장 LED 사용 중임을 명시
+
+#endif
 
 // ── BNO085 설정 ─────────────────────────────────────────────────
 #define BNO085_I2C_ADDR     0x4A   // SA0=GND → 0x4A, SA0=VCC → 0x4B

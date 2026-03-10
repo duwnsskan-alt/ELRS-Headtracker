@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "author": "HeadTracker-C3 SuperMini Test Board",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c3-devkitm-1",
+      "id": "mcu",
+      "top": 150,
+      "left": 80,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "bno085",
+      "top": 0,
+      "left": -200,
+      "attrs": {
+        "label": "BNO085 (MPU6050 pinout proxy)"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_neo",
+      "top": 110,
+      "left": 430,
+      "rotate": 90,
+      "attrs": { "value": "300" }
+    },
+    {
+      "type": "wokwi-neopixel",
+      "id": "led_ws2812",
+      "top": 40,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_mode",
+      "top": 350,
+      "left": -180,
+      "attrs": { "color": "blue" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_btn",
+      "top": 310,
+      "left": -100,
+      "rotate": 0,
+      "attrs": { "value": "10000" }
+    }
+  ],
+  "connections": [
+    ["$serialMonitor:TX", "mcu:RX",  "green", []],
+    ["$serialMonitor:RX", "mcu:TX",  "green", []],
+
+    ["mcu:3V3", "bno085:VCC",  "red",   []],
+    ["mcu:GND", "bno085:GND",  "black", []],
+    ["mcu:GPIO6", "bno085:SDA", "blue",  []],
+    ["mcu:GPIO7", "bno085:SCL", "yellow",[]],
+
+    ["mcu:GPIO3", "r_neo:1",   "green", []],
+    ["r_neo:2",   "led_ws2812:DIN", "green", []],
+    ["mcu:3V3",   "led_ws2812:VCC", "red",   []],
+    ["mcu:GND",   "led_ws2812:GND", "black", []],
+
+    ["mcu:3V3",    "r_btn:1",       "red",   []],
+    ["r_btn:2",    "btn_mode:1.l",  "orange",[]],
+    ["btn_mode:1.l","mcu:GPIO10",   "orange",[]],
+    ["btn_mode:2.l","mcu:GND",      "black", []]
+  ],
+  "notes": [
+    {
+      "text": "BNO085 대신 MPU6050 컴포넌트 사용 (I2C 핀 동일)\nVCC=3.3V SDA=GPIO6 SCL=GPIO7 INT=미연결",
+      "top": -60,
+      "left": -200
+    },
+    {
+      "text": "SBUS TX = GPIO4 → FC/수신기 연결\n(시뮬에선 미표시, 실제 배선만)",
+      "top": 420,
+      "left": 80
+    },
+    {
+      "text": "GPIO9 = BOOT 버튼 (보드 내장)\n(CENTER 버튼 — 시뮬 자동 인식)",
+      "top": 420,
+      "left": 280
+    }
+  ]
+}
